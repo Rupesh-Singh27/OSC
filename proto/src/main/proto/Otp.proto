@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "org.orosoft.otp";
+
+message OtpRequest{
+  string userId = 1;
+  int32 otp = 2;
+}
+
+message OtpResponse{
+  string response = 1;
+}
+
+service OtpService{
+  rpc sendOtp(OtpRequest) returns (OtpResponse);
+}
