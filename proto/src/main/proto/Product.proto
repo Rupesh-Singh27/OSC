@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+option java_package = "org.orosoft.product";
+option java_multiple_files = true;
+
+message ProductRequest{
+  string userId = 1;
+  string sessionId = 2;
+}
+
+message ProductResponse{
+  DataObjectDto dataObject = 1;
+  bool isNewUser = 2;
+}
+
+message DataObjectDto{
+  repeated MainDataDto data= 1;
+}
+
+message MainDataDto{
+  string type = 1;
+  repeated RecentlyViewedProductDto recentlyViewedProducts = 2;
+  repeated SimilarProductDto similarProducts = 3;
+  repeated CategoryDto categories = 4;
+  repeated CartDto cartData = 5;
+}
+
+message RecentlyViewedProductDto{
+  repeated ProductDto productList = 1;
+}
+
+message SimilarProductDto{
+  repeated ProductDto productList = 1;
+}
+
+message CategoryDto{
+  int32 categoryId = 1;
+  string categoryName = 2;
+  int32 categoryViewCount = 3;
+}
+
+message CartDto{
+  string userId = 1;
+  int32 productsCartCount = 2;
+  double price = 3;
+  repeated CartProductDto cartProducts = 4;
+}
+
+
+message CartProductDto{
+    ProductDto product = 1;
+    int32 cartQuantity = 2;
+}
+
+message ProductDto{
+  string productId = 1;
+  string categoryId = 2;
+  string productName = 3;
+  double productMarketPrice = 4;
+  string productDescription = 5;
+  int32 productViewCount = 6;
+}
+
+service ProductService{
+  rpc getProductForDashboard(ProductRequest) returns (ProductResponse);
+}

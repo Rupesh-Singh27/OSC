@@ -1,13 +1,7 @@
 package org.orosoft.emailservice.service;
 
-import com.hazelcast.client.HazelcastClient;
-import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.map.IMap;
 import com.hazelcast.shaded.org.json.JSONObject;
-import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
-import org.orosoft.otp.OtpRequest;
-import org.orosoft.otp.OtpResponse;
 import org.orosoft.otp.OtpServiceGrpc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,8 +22,6 @@ public class EmailSenderService extends OtpServiceGrpc.OtpServiceImplBase{
 
     @Autowired
     private JavaMailSender javaMailSender;
-
-    HazelcastInstance hazelcastClient = HazelcastClient.newHazelcastClient();
 
     @Value("${spring.mail.username}")
     private String fromMail;
@@ -56,11 +48,6 @@ public class EmailSenderService extends OtpServiceGrpc.OtpServiceImplBase{
         String body = "Your User-ID is: " + userId + "\n" + "Your One Time Password is: " + otp;
 
         sendSimpleEmail(emailId, "Your User-ID and One Time Password", body);
-
-        //Storing OTP in hazelcast -- format: userID(key) -> OTP(value)
-        IMap<String, String> otpCacheMap = hazelcastClient.getMap("otpCache");
-        otpCacheMap.put(userId, otp);
-
     }
 
     /***
@@ -81,61 +68,5 @@ public class EmailSenderService extends OtpServiceGrpc.OtpServiceImplBase{
         javaMailSender.send(message);
 
         System.out.println("Mail Sent Successfully...");
-    }
-
-    /***
-     * <p>Validating the OTP sent by the user and the OTP which is store in cache, the same OTP which we sent as a mail, if they both are same or not.</p>
-     *
-     * @param request The object we will be getting userId and OTP need to be validated.
-     * @param responseObserver The object we need to sent based on the correctness of the OTP.
-     *
-     * ***/
-    @Override
-    public void sendOtp(OtpRequest request, StreamObserver<OtpResponse> responseObserver) {
-
-        try{
-            String userId = request.getUserId();
-            int otp = request.getOtp();
-
-            /*Fetching count of tries from cache based on userId to validate the tries*/
-            IMap<String, Integer> otpCountMap = hazelcastClient.getMap("otpCount");
-            Integer tries = otpCountMap.getOrDefault(userId, 1);
-            LOGGER.info("Total tries: " + tries);
-
-            /*Fetching OTP from cache saved earlier in the cache, based on userId to validate the OTP*/
-            IMap<String, String> otpCacheMap = hazelcastClient.getMap("otpCache");
-            LOGGER.info(otpCacheMap.entrySet().toString());
-
-            if(!otpCacheMap.containsKey(userId)){
-                responseObserver.onNext(OtpResponse.newBuilder().setResponse("Invalid user id").build());
-            }else{
-                int fetchedOtp = Integer.parseInt(otpCacheMap.getOrDefault(userId, "-1"));
-                LOGGER.info("Fetched OTP: " + fetchedOtp);
-
-                if(fetchedOtp == otp){
-                    responseObserver.onNext(OtpResponse.newBuilder().setResponse("OTP matched").build());
-
-                    //Clearing OTP and count(tries) from cache once otp consumed.
-                    otpCacheMap.remove(userId);
-                    otpCountMap.remove(userId);
-                } else{
-                    if(tries == 3){
-                        responseObserver.onNext(OtpResponse.newBuilder().setResponse("Tries exceeded").build());
-
-                        //Clearing OTP and count(tries) from cache once maximum attempt exceed.
-                        otpCacheMap.remove(userId);
-                        otpCountMap.remove(userId);
-                    }else{
-                        //1st or 2nd attempt failed
-                        responseObserver.onNext(OtpResponse.newBuilder().setResponse("Invalid OTP").build());
-                        otpCountMap.put(userId, ++tries);
-                    }
-                }
-            }
-            responseObserver.onCompleted();
-        }catch (RuntimeException exception){
-            responseObserver.onNext(OtpResponse.newBuilder().setResponse("Exception Occurred").build());
-            responseObserver.onCompleted();
-        }
     }
 }

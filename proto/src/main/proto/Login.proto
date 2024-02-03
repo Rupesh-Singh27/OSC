@@ -13,5 +13,5 @@ message LoginResponse{
 }
 
 service LoginService{
-  rpc loginStatus(LoginRequest) returns (LoginResponse);
+  rpc getLoginStatus(LoginRequest) returns (LoginResponse);
 }

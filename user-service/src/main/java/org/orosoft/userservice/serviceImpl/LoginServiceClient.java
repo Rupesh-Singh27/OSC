@@ -1,6 +1,5 @@
 package org.orosoft.userservice.serviceImpl;
 
-import lombok.extern.java.Log;
 import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.orosoft.login.LoginRequest;
 import org.orosoft.login.LoginResponse;
@@ -32,7 +31,7 @@ public class LoginServiceClient {
                 .setDevice(device)
                 .build();
 
-        LoginResponse loginResponse = blockingStub.loginStatus(loginRequest);
+        LoginResponse loginResponse = blockingStub.getLoginStatus(loginRequest);
         return loginResponse.getIsLoggedIn();
     }
 }

@@ -28,6 +28,5 @@ public class OtpServiceClient {
          OtpRequest otpRequest = OtpRequest.newBuilder().setUserId(userId).setOtp(otp).build();
          OtpResponse otpResponse = this.otpServiceBlockingStub.sendOtp(otpRequest);
          return otpResponse.getResponse();
-
     }
 }

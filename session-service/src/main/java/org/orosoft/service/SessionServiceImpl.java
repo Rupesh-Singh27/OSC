@@ -3,11 +3,12 @@ package org.orosoft.service;
 import io.grpc.stub.StreamObserver;
 import jakarta.annotation.PostConstruct;
 import net.devh.boot.grpc.server.service.GrpcService;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.utils.Bytes;
-import org.apache.kafka.streams.*;
+import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.StoreQueryParameters;
+import org.apache.kafka.streams.StreamsBuilder;
+import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.Grouped;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.KTable;
@@ -15,18 +16,16 @@ import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
+import org.orosoft.common.PropsSingletonClass;
 import org.orosoft.dto.LoginLogoutDTO;
 import org.orosoft.entity.SessionDetail;
 import org.orosoft.login.LoginRequest;
 import org.orosoft.login.LoginResponse;
 import org.orosoft.login.LoginServiceGrpc;
 import org.orosoft.repository.SessionRepository;
-import org.orosoft.serdes.LoginLogoutSerdes;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
@@ -41,8 +40,9 @@ public class SessionServiceImpl extends LoginServiceGrpc.LoginServiceImplBase {
 
     KafkaStreams kafkaStreams;
 
+    /* This function is responsible to indicate whether the user is Log In or Log Out. */
     @Override
-    public void loginStatus(LoginRequest request, StreamObserver<LoginResponse> responseObserver) {
+    public void getLoginStatus(LoginRequest request, StreamObserver<LoginResponse> responseObserver) {
 
         String userId = request.getUserId();
         String device = request.getDevice();
@@ -51,42 +51,43 @@ public class SessionServiceImpl extends LoginServiceGrpc.LoginServiceImplBase {
 
         System.out.println("Custom Login Key: " + customLoginKey);
 
-        //Interactive query to check login status of the user in KTable
+        /*
+        * Interactive query to check login status of the user in KTable
+        * */
         ReadOnlyKeyValueStore<String, Boolean> store = kafkaStreams.store(StoreQueryParameters
                 .fromNameAndType("login-status-store", QueryableStoreTypes.keyValueStore()));
 
-        // Wait until the application is in the RUNNING state
-        /*while (kafkaStreams.state() != KafkaStreams.State.RUNNING) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        }*/
+        /*TODO: Check why Wrapper was written instead of primitive boolean*/
+        boolean isLoggedIn = false;
+        if(store.get(customLoginKey) != null &&  store.get(customLoginKey)) isLoggedIn = true;
 
-        Boolean isLoggedIn = store.get(userId + "_" + device);
         System.out.println("Is user logged in?: " + isLoggedIn);
 
-        //if the user is logging in for the first time, isLoggedIn object will be null.
-        responseObserver.onNext(LoginResponse.newBuilder().setIsLoggedIn(Objects.requireNonNullElse(isLoggedIn, false)).build());
+        /*
+        * If the user is logging in for the first time, isLoggedIn object will be null hence the default value will be false i.e. Log out.
+        * */
+        responseObserver.onNext(LoginResponse.newBuilder().setIsLoggedIn(isLoggedIn).build());
         responseObserver.onCompleted();
     }
 
+    /*
+    * Implementing Kafka Streams here to fetch the data from topic and processing it.
+    *
+    * Responsibilities:
+    * Update the KTable.
+    * Update the Session Table in Database.
+    * */
     @PostConstruct
     public void updateLoginDetails(){
-
-        /*Kafka Stream to fetch the data from topic and manipulating it*/
-        Properties props = new Properties();
-        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "login-details");
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
-        props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
-        props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, LoginLogoutSerdes.class.getName());
+        Properties props = PropsSingletonClass.getPropsSingletonClassInstance().getPropertiesClassInstance();
 
         StreamsBuilder builder = new StreamsBuilder();
 
         KStream<String, LoginLogoutDTO> stream = builder.stream("LoginLogoutTopic");
 
-        //Creating the KTable after fetching data from stream.
+        /*
+        * Creating the KTable after fetching data from stream.
+        * */
         KTable<String, Boolean> loginStatusTable =
                 stream
                         .mapValues((loginLogoutDetails) -> loginLogoutDetails.getLoginStatus())
@@ -98,12 +99,19 @@ public class SessionServiceImpl extends LoginServiceGrpc.LoginServiceImplBase {
                                     .withValueSerde(Serdes.Boolean())
                         );
 
-        loginStatusTable.toStream().foreach((key, value) -> System.out.println(key + ": " + value.toString()));
+        loginStatusTable.toStream().foreach((key, value) -> System.out.println("Login status for " + key + " changed to " + value.toString()));
 
-        //Updating the database
+        /*
+        * Calling different function to update the session table in database
+        * */
+        /*
+        * TODO: Combine this stream operation with above stream operation and change the method name from updating to updateSessionTable
+        * Cannot be combined, since foreach is a void method doesn't return anything a so couldn't be used as first operation and
+        * later the data is mapped object to boolean hence cannot be used later as well
+        * */
         stream.foreach((userId, loginLogoutDetails) -> {
             System.out.println(userId + ": " + loginLogoutDetails.toString());
-            updatingSessionTable(loginLogoutDetails);
+            updateSessionTable(loginLogoutDetails);
         });
 
         Topology topology = builder.build();
@@ -119,56 +127,45 @@ public class SessionServiceImpl extends LoginServiceGrpc.LoginServiceImplBase {
         Runtime.getRuntime().addShutdownHook(new Thread(()-> kafkaStreams.close()));
     }
 
-    private void updatingSessionTable(LoginLogoutDTO loginLogoutDetails) {
+    /*Persisting login and logout details in session table in database*/
+    private void updateSessionTable(LoginLogoutDTO loginLogoutDetails) {
 
-        //Login time is not empty means user is here to login else here for logout.
+        /*
+        * Login time is not empty means user is here for login or else user is here for logout.
+        * */
         if(!loginLogoutDetails.getLoginTime().isEmpty()){
 
-            //this will indicate if user is here for first time or nth time.
+            SessionDetail sessionDetail = updateLoginDetail(loginLogoutDetails);
+            sessionRepository.save(sessionDetail);
+        }else{
+            //user wants to logout.
             Optional<SessionDetail> sessionDetailFromRepo = sessionRepository.findById(loginLogoutDetails.getSessionId());
 
-            //user is here for nth time, hence just updating login time
-            if(sessionDetailFromRepo.isPresent()){
-                SessionDetail loginSessionDetail = updateLoginDetail(loginLogoutDetails, sessionDetailFromRepo);
+            if(sessionDetailFromRepo.isPresent() && sessionDetailFromRepo.get().getLogoutTime().isEmpty()){
+                SessionDetail logoutSessionDetail = updateLogoutDetail(loginLogoutDetails, sessionDetailFromRepo.get());
 
-                sessionRepository.save(loginSessionDetail);
+                System.out.println("Logout Object: " + logoutSessionDetail);
+                sessionRepository.save(logoutSessionDetail);
             }else{
-                //user is here for first time, hence add the data as it is.
-                SessionDetail sessionDetail = new SessionDetail();
-
-                sessionDetail.setUserId(loginLogoutDetails.getUserId());
-                sessionDetail.setSessionId(loginLogoutDetails.getSessionId());
-                sessionDetail.setDevice(loginLogoutDetails.getDevice());
-                sessionDetail.setLoginTime(loginLogoutDetails.getLoginTime());
-                sessionDetail.setLogoutTime(loginLogoutDetails.getLogoutTime());
-
-                sessionRepository.save(sessionDetail);
+                System.out.println("User is already logged out!!!");
             }
-
-        }else{
-            //user wants to logout
-            SessionDetail sessionDetailFromRepo = sessionRepository.findById(loginLogoutDetails.getSessionId()).get();
-
-            SessionDetail logoutSessionDetail = updateLogoutDetail(loginLogoutDetails, sessionDetailFromRepo);
-
-            sessionRepository.save(logoutSessionDetail);
         }
     }
 
-    private static SessionDetail updateLoginDetail(LoginLogoutDTO loginLogoutDetails, Optional<SessionDetail> sessionDetailFromRepo) {
+    /*Preparing Session Detail Object for login to put it in Session Table in Database*/
+    private static SessionDetail updateLoginDetail(LoginLogoutDTO loginLogoutDetails) {
         SessionDetail sessionDetail = new SessionDetail();
 
-        //keeping rest of the data as it is just updating the login time, session id.
-        sessionDetail.setUserId(sessionDetailFromRepo.get().getUserId());
-        sessionDetail.setSessionId(loginLogoutDetails.getSessionId()); //updating the session of user.
-        sessionDetail.setDevice(loginLogoutDetails.getDevice()); //updating the device from which user is logging in.
-        sessionDetail.setLoginTime(loginLogoutDetails.getLoginTime()); //updating the login time of user.
-        sessionDetail.setLogoutTime(sessionDetailFromRepo.get().getLogoutTime());
-        sessionDetail.setLoginStatus(sessionDetailFromRepo.get().getLoginStatus());
+        sessionDetail.setUserId(loginLogoutDetails.getUserId());
+        sessionDetail.setSessionId(loginLogoutDetails.getSessionId());
+        sessionDetail.setDevice(loginLogoutDetails.getDevice());
+        sessionDetail.setLoginTime(loginLogoutDetails.getLoginTime());
+        sessionDetail.setLogoutTime(loginLogoutDetails.getLogoutTime());
 
         return sessionDetail;
     }
 
+    /*Preparing Session Detail Object for logout to put it in Session Table in Database*/
     private static SessionDetail updateLogoutDetail(LoginLogoutDTO loginLogoutDetails, SessionDetail sessionDetailFromRepo) {
         SessionDetail sessionDetail = new SessionDetail();
 
@@ -177,9 +174,8 @@ public class SessionServiceImpl extends LoginServiceGrpc.LoginServiceImplBase {
         sessionDetail.setSessionId(sessionDetailFromRepo.getSessionId());
         sessionDetail.setDevice(sessionDetailFromRepo.getDevice());
         sessionDetail.setLoginTime(sessionDetailFromRepo.getLoginTime());
-        sessionDetail.setLogoutTime(loginLogoutDetails.getLogoutTime()); //updating the logout time.
-        sessionDetail.setLoginStatus(sessionDetailFromRepo.getLoginStatus());
-        
+        sessionDetail.setLogoutTime(loginLogoutDetails.getLogoutTime()); //updating just the logout time.
+
         return sessionDetail;
     }
 }

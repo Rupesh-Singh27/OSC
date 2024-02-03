@@ -7,10 +7,14 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, String> {
 
-
     Optional<User> findByEmail(String emailId);
 
     Optional<User> findByUserId(String userid);
 
     Optional<User> findByUserIdAndPassword(String userId, String password);
+
+    boolean existsByEmail(String userId);
+    boolean existsByUserId(String userId);
+
+    boolean existsByUserIdAndPassword(String userId, String passWord);
 }

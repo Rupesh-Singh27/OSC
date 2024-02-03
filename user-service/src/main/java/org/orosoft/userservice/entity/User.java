@@ -1,10 +1,7 @@
 package org.orosoft.userservice.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -35,4 +32,7 @@ public class User {
     @Column(name = "date_of_birth")
     @JsonProperty("DOB")
     private String dataOfBirth;
+
+    @Transient
+    private long otp;
 }

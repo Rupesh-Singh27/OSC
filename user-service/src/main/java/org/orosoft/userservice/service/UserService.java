@@ -1,6 +1,5 @@
 package org.orosoft.userservice.service;
 
-import jakarta.servlet.http.HttpSession;
 import org.orosoft.userservice.entity.User;
 
 public interface UserService {
@@ -8,15 +7,17 @@ public interface UserService {
 
     String validateOtp(String userId, int otp);
 
-    String addUserInDB(String userId, String password);
+    String prepareObjectToSaveInDB(String userId, String password);
 
-    String loginUser(String userId, String password, String loginDevice, HttpSession session);
+    String loginUser(String userId, String password, String loginDevice);
 
-    String logoutUser(String userId, String sessionId, HttpSession session);
+    String logoutUser(String userId, String sessionId);
 
     String validateEmail(String email);
 
     String validateOtpForForgotPassword(String email, int otp);
 
     String updatePassword(String email, String newPassword);
+
+    String getProductsForDashboard(String userId, String sessionId);
 }

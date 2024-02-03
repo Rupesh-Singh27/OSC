@@ -46,7 +46,7 @@ public class UserController {
     @PostMapping("/validateotp")
     public ResponseEntity<?> validateOtp(@RequestBody UserIdAndOTPDto userIdAndOTPDto){
 
-        System.out.println(userIdAndOTPDto.getUserId() + " " + userIdAndOTPDto.getOtp());
+        System.out.println("Userid and OTP to verify: " + userIdAndOTPDto.getUserId() + " " + userIdAndOTPDto.getOtp());
 
         String message = userService.validateOtp(userIdAndOTPDto.getUserId(), userIdAndOTPDto.getOtp());
         System.out.println("Otp validation response: " + message);
@@ -76,7 +76,7 @@ public class UserController {
 
     @PostMapping("/addUserDetails")
     public ResponseEntity<?> addUserDetails(@RequestBody UserIdAndPasswordDto userIdAndPasswordDto){
-        String message = userService.addUserInDB(userIdAndPasswordDto.getUserId(), userIdAndPasswordDto.getPassword());
+        String message = userService.prepareObjectToSaveInDB(userIdAndPasswordDto.getUserId(), userIdAndPasswordDto.getPassword());
 
         Map<String,Integer> responseMap = new HashMap<>();
 
@@ -90,14 +90,14 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@RequestBody Map<String, String> loginObject, HttpServletRequest request){
+    public ResponseEntity<?> loginUser(@RequestBody Map<String, String> loginObject){
 
         String userId = loginObject.get("userId");
         String password = loginObject.get("password");
         String loginDevice = loginObject.get("loginDevice");
 
         LOGGER.info("Calling UserService's loginUser method");
-        String message = userService.loginUser(userId, password, loginDevice, request.getSession());
+        String message = userService.loginUser(userId, password, loginDevice);
 
         Map<String,Integer> responseMap = new HashMap<>();
 
@@ -124,11 +124,11 @@ public class UserController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logoutUser(@RequestBody Map<String, String> logoutObject, HttpServletRequest request){
+    public ResponseEntity<?> logoutUser(@RequestBody Map<String, String> logoutObject){
         String userId = logoutObject.get("userId");
         String sessionId = logoutObject.get("sessionId");
 
-        String message = userService.logoutUser(userId, sessionId, request.getSession());
+        String message = userService.logoutUser(userId, sessionId);
 
         Map<String,Integer> responseMap = new HashMap<>();
 
@@ -202,5 +202,13 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.OK)
                     .body(responseMap);
         }
+    }
+
+    @GetMapping("/dashboard")
+    public ResponseEntity<?> dashboard(@RequestBody Map<String, String> userIdAndSessionId){
+        String userId = userIdAndSessionId.get("userId");
+        String sessionId = userIdAndSessionId.get("sessionId");
+        String string = userService.getProductsForDashboard(userId, sessionId);
+        return new ResponseEntity<>(string, HttpStatus.OK);
     }
 }
