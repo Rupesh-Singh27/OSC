@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+option java_package = "org.orosoft.logout";
+option java_multiple_files = true;
+
+message LogoutRequest{
+  string userId = 1;
+  string sessionId = 2;
+  string device = 3;
+}
+
+message LogoutResponse{
+  bool isLoggedOut = 1;
+}
+
+service LogoutService{
+  rpc logoutUser(LogoutRequest) returns (LogoutResponse);
+}

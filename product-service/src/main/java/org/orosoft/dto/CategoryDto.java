@@ -1,7 +1,6 @@
 package org.orosoft.dto;
 
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -14,7 +13,4 @@ public class CategoryDto {
     private char categoryId;
 
     private String categoryName;
-
-    @JsonProperty("count")
-    private int categoryViewCount;
 }

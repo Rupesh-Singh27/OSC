@@ -7,13 +7,13 @@ import org.orosoft.userservice.dto.LoginLogoutDTO;
 
 public class LoginLogoutDTOSerializer implements Serializer<LoginLogoutDTO> {
     @Override
-    public byte[] serialize(String topic, LoginLogoutDTO dtoObject) {
+    public byte[] serialize(String topic, LoginLogoutDTO dataObject) {
 
         byte[] loginLogoutDTOBytes = null;
         ObjectMapper objectMapper = new ObjectMapper();
 
         try {
-            loginLogoutDTOBytes = objectMapper.writeValueAsString(dtoObject).getBytes();
+            loginLogoutDTOBytes = objectMapper.writeValueAsString(dataObject).getBytes();
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }

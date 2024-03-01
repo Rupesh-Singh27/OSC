@@ -1,11 +1,10 @@
 package org.orosoft.emailservice.service;
 
-import com.hazelcast.shaded.org.json.JSONObject;
-import net.devh.boot.grpc.server.service.GrpcService;
-import org.orosoft.otp.OtpServiceGrpc;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.orosoft.emailservice.dto.EmailDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -15,39 +14,51 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Configuration
-@GrpcService
-public class EmailSenderService extends OtpServiceGrpc.OtpServiceImplBase{
+public class EmailSenderService{
 
     private static final Logger LOGGER = LoggerFactory.getLogger(EmailSenderService.class);
-
-    @Autowired
-    private JavaMailSender javaMailSender;
 
     @Value("${spring.mail.username}")
     private String fromMail;
 
-    /***
-     * <p> Kafka Consumer. Fetches the string, converts it into JSON, extracts the necessary details and calls the mailing function. <p>
-     *
-     * @param otpDetails String which consist of User-Id, Email-Id and OTP in JSON format.
-     *
-     ***/
+    private final JavaMailSender javaMailSender;
+
+    EmailSenderService(JavaMailSender javaMailSender){
+        this.javaMailSender = javaMailSender;
+    }
+
     @KafkaListener(topics = "email_topic", groupId = "email-group")
-    public void fetchDetailsFromTopic(String otpDetails) {
+    public void fetchDetailsFromTopic(String emailObject) {
+        EmailDto emailDto;
+        String subject;
+        String body;
 
-        LOGGER.info("OTP details: "+otpDetails);
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            emailDto = objectMapper.readValue(emailObject, EmailDto.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
 
-        JSONObject jsonObject = new JSONObject(otpDetails);
+        LOGGER.info("OTP details: "+emailDto.toString());
 
-        String userId = jsonObject.getString("1");
-        String emailId = jsonObject.getString("2");
-        String otp = jsonObject.getString("3");
+        String userId = emailDto.getUserId();
+        String emailId = emailDto.getEmailId();
+        String otp = String.valueOf(emailDto.getOtp());
+
+        //If block will execute while registering the user, else block will execute while sending OTP for forgot password function
+        if(userId != null && !userId.isEmpty()){
+            subject = "User-ID and One Time Password";
+            body = "Your User-ID is: " + userId + "\n" + "Your One Time Password is: " + otp;
+        }
+        else{
+            subject = "One Time Password";
+            body = "Your One Time Password is: " + otp;
+        }
 
         System.out.println(userId + "\n" + emailId + "\n" + otp);
 
-        String body = "Your User-ID is: " + userId + "\n" + "Your One Time Password is: " + otp;
-
-        sendSimpleEmail(emailId, "Your User-ID and One Time Password", body);
+        sendSimpleEmail(emailId, subject, body);
     }
 
     /***

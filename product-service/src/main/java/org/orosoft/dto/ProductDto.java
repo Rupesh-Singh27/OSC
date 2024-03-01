@@ -13,7 +13,7 @@ public class ProductDto {
 
     private String productId;
 
-    private String categoryId;
+    private CategoryDto category;
 
     @JsonProperty("prodName")
     private String productName;
