@@ -1,7 +1,7 @@
 package org.orosoft.serviceImpl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.server.service.GrpcService;
@@ -21,17 +21,20 @@ public class ProductServerGrpcServerImpl extends ProductServiceGrpc.ProductServi
     private final ProductService productService;
     private final ProductDetailsService productDetailsService;
     private final CartOperationService cartOperationService;
+    private final RecentViewUpdateService recentViewUpdateService;
+
     private final ObjectMapper objectMapper;
 
     ProductServerGrpcServerImpl(
             ProductService productService,
             ProductDetailsService productDetailsService,
             CartOperationService cartOperationService,
-            ObjectMapper objectMapper
+            RecentViewUpdateService recentViewUpdateService, ObjectMapper objectMapper
     ){
         this.productService = productService;
         this.productDetailsService = productDetailsService;
         this.cartOperationService = cartOperationService;
+        this.recentViewUpdateService = recentViewUpdateService;
         this.objectMapper = objectMapper;
     }
 
@@ -47,29 +50,52 @@ public class ProductServerGrpcServerImpl extends ProductServiceGrpc.ProductServi
 
             responseObserver.onNext(ProductResponse.newBuilder().setResponse(productResponseForPings).build());
             responseObserver.onCompleted();
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+        } catch (Exception exception) {
+            responseObserver.onError(
+                    Status.UNKNOWN
+                            .withDescription("Oops!! something went wrong, could not process your ping.")
+                            .augmentDescription(exception.getMessage())
+                            .asRuntimeException()
+            );
         }
     }
 
     @Override
     public void updateRecentViewProductTable(ProductRequest request, StreamObserver<VoidResponse> responseObserver) {
-        log.info("Request received to update recent view database table in GRPC Server");
+        try{
+            log.info("Request received to update recent view database table in GRPC Server");
 
-        String userId = request.getUserId();
-        productDetailsService.updateRecentViewProductDatabaseTable(userId);
+            String userId = request.getUserId();
+            recentViewUpdateService.updateRecentViewProductDatabaseTable(userId);
 
-        responseObserver.onNext(VoidResponse.newBuilder().build());
-        responseObserver.onCompleted();
+            responseObserver.onNext(VoidResponse.newBuilder().build());
+            responseObserver.onCompleted();
+        }catch (Exception exception) {
+            responseObserver.onError(
+                    Status.UNKNOWN
+                            .withDescription("Oops!! something went wrong, could not update Recent View Table.")
+                            .augmentDescription(exception.getMessage())
+                            .asRuntimeException()
+            );
+        }
     }
 
     @Override
     public void updateCartProductsTable(ProductRequest request, StreamObserver<VoidResponse> responseObserver) {
-        log.info("Request received to update cart database table in GRPC Server");
+        try{
+            log.info("Request received to update cart database table in GRPC Server");
 
-        cartOperationService.updateCartProductsDatabaseTable(request.getUserId());
+            cartOperationService.updateCartProductsDatabaseTable(request.getUserId());
 
-        responseObserver.onNext(VoidResponse.newBuilder().build());
-        responseObserver.onCompleted();
+            responseObserver.onNext(VoidResponse.newBuilder().build());
+            responseObserver.onCompleted();
+        }catch (Exception exception) {
+            responseObserver.onError(
+                    Status.UNKNOWN
+                            .withDescription("Oops!! something went wrong, could not update Cart Product Table.")
+                            .augmentDescription(exception.getMessage())
+                            .asRuntimeException()
+            );
+        }
     }
 }

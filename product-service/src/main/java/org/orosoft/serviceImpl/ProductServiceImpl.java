@@ -2,22 +2,18 @@ package org.orosoft.serviceImpl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.streams.kstream.KTable;
 import org.orosoft.common.AppConstants;
 import org.orosoft.entity.Cart;
 import org.orosoft.entity.RecentView;
-import org.orosoft.repository.CartRepository;
-import org.orosoft.repository.RecentViewRepository;
+import org.orosoft.exception.CustomException;
+import org.orosoft.kafkaproducer.CartProductProducer;
+import org.orosoft.kafkaproducer.RecentViewProducer;
 import org.orosoft.request.MTPingRequest;
 import org.orosoft.response.ApiResponse;
 import org.orosoft.response.ExistingUserDataObjectResponse;
 import org.orosoft.response.NewUserDataObjectResponse;
 import org.orosoft.service.ProductService;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -28,78 +24,75 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ProductServiceImpl implements ProductService{
 
-    private final RecentViewRepository recentViewRepository;
-    private final ProductServiceDaoHandler productServiceDaoHandler;
-    private final ResponseGeneratorServiceForNewUser recentlyViewResponseForNewUser;
     private final ResponseGeneratorServiceForExistingUser recentlyViewResponseForExistingUser;
+    private final ResponseGeneratorServiceForNewUser recentlyViewResponseForNewUser;
+    private final ProductServiceDaoHandler productServiceDaoHandler;
     private final ProductDetailsService productDetailsService;
-    private final KafkaProducer<String, List<RecentView>> kafkaProducerForRecentView;
-    private final KafkaProducer<String, Map<String, Cart>> kafkaProducerForCartProducts;
-    private final CartRepository cartRepository;
-    private final FilterService filterService;
     private final CartOperationService cartOperationService;
-    private final ObjectMapper objectMapper;
-    private KTable<String, List<RecentView>> recentViewKTable;
+    private final CartProductProducer cartProductProducer;
+    private final RecentViewProducer recentViewProducer;
     private List<RecentView> recentlyViewedProducts;
+    private final FilterService filterService;
+    private final ObjectMapper objectMapper;
 
     public ProductServiceImpl(
-            RecentViewRepository recentViewRepository,
+            ResponseGeneratorServiceForExistingUser recentlyViewResponseForExistingUser,
+            ResponseGeneratorServiceForNewUser recentlyViewResponseForNewUser,
             ProductServiceDaoHandler productServiceDaoHandler,
             ProductDetailsService productDetailsService,
-            ResponseGeneratorServiceForNewUser recentlyViewResponseForNewUser,
-            ResponseGeneratorServiceForExistingUser recentlyViewResponseForExistingUser,
-            @Qualifier("kafkaProducerForRecentView")KafkaProducer<String, List<RecentView>> kafkaProducerForRecentView,
-            @Qualifier("kafkaProducerForCartProducts")KafkaProducer<String, Map<String, Cart>> kafkaProducerForCartProducts,
-            CartRepository cartRepository,
-            FilterService filterService,
             CartOperationService cartOperationService,
+            CartProductProducer cartProductProducer,
+            RecentViewProducer recentViewProducer,
+            FilterService filterService,
             ObjectMapper objectMapper
     ){
-        this.recentViewRepository = recentViewRepository;
+        this.recentlyViewResponseForExistingUser = recentlyViewResponseForExistingUser;
+        this.recentlyViewResponseForNewUser = recentlyViewResponseForNewUser;
         this.productServiceDaoHandler = productServiceDaoHandler;
         this.productDetailsService = productDetailsService;
-        this.recentlyViewResponseForNewUser = recentlyViewResponseForNewUser;
-        this.recentlyViewResponseForExistingUser = recentlyViewResponseForExistingUser;
-        this.kafkaProducerForRecentView = kafkaProducerForRecentView;
-        this.kafkaProducerForCartProducts = kafkaProducerForCartProducts;
-        this.filterService = filterService;
         this.cartOperationService = cartOperationService;
-        this.cartRepository = cartRepository;
+        this.cartProductProducer = cartProductProducer;
+        this.recentViewProducer = recentViewProducer;
+        this.filterService = filterService;
         this.objectMapper = objectMapper;
     }
 
     @Override
     public ApiResponse prepareDashboard(String userId, String sessionId) {
+        if(userId != null){
+            /*If recentlyViewedProducts not empty then will use it as it is, if empty means user does not have past views hence prepare response accordingly*/
+            fetchRecentlyViewedProducts(userId);
+            /*Delete other older records except recent 6*/
+            deleteOlderRecentViewRecords(userId);
+            /*Produce recentlyViewedProducts List in kafka to make KTable for caching*/
+            produceRecentViewProductsInKafka(userId);
 
-        fetchRecentlyViewedProducts(userId);
-        deleteOlderRecords(userId);
-        produceRecentViewProductsInKafkaTopic(userId);
+            /*get all the products from the cart database table store it in Map<ProductId, CartProduct> so that performing operation(increase, decrease, remove) on cart becomes easy*/
+            Map<String, Cart> cartProductsMap = fetchCartProducts(userId);
+            /*Produce cartProductsMap List in kafka to make KTable for caching*/
+            produceCartProductsInKafka(userId, cartProductsMap);
 
-        Map<String, Cart> cartProductsMap = fetchCartProducts(userId);
-        produceCartProductsInKafkaTopic(userId, cartProductsMap);
-
-        return prepareDashboardBasedOnUser(userId);
+            /*prepare dashboard for the user*/
+            return prepareDashboardBasedOnUser(userId);
+        }else{
+            throw new CustomException("UserId is null");
+        }
     }
 
-    /*If recentlyViewedProducts not empty then will use it as it is, if empty means user does not have past views hence prepare response accordingly*/
     private void fetchRecentlyViewedProducts(String userId) {
         recentlyViewedProducts = productServiceDaoHandler.fetchRecentlyViewedProductsFromDatabase(userId);
         System.out.println("Recently Viewed Products are" + recentlyViewedProducts);
     }
 
-    /*Delete other older records except recent 6*/
-    private void deleteOlderRecords(String userId) {
+    private void deleteOlderRecentViewRecords(String userId) {
         List<String> latestViewDates = recentlyViewedProducts.stream().map(RecentView::getViewDate).collect(Collectors.toList());
-        recentViewRepository.deleteOldRecentViews(userId, latestViewDates);
+        productServiceDaoHandler.deleteLeastRecentViewProducts(userId, latestViewDates);
     }
 
-    /*Produce recentlyViewedProducts List in kafka to make KTable for caching*/
-    private void produceRecentViewProductsInKafkaTopic(String userId) {
-        ProducerRecord<String, List<RecentView>> record = new ProducerRecord<>(AppConstants.RECENT_VIEW_TOPIC_NAME, userId, recentlyViewedProducts);
-        kafkaProducerForRecentView.send(record);
+    private void produceRecentViewProductsInKafka(String userId) {
+        recentViewProducer.produceRecentViewProductsInKafkaTopic(userId, recentlyViewedProducts);
     }
 
-    /*get all the products from the cart database table store it in Map<ProductId, CartProduct> so that performing operation(increase, decrease, remove) on cart becomes easy*/
     private Map<String, Cart> fetchCartProducts(String userId) {
         return productServiceDaoHandler
                 .fetchCartProductsFromDatabase(userId)
@@ -112,13 +105,10 @@ public class ProductServiceImpl implements ProductService{
                 );
     }
 
-    /*Produce cartProductsMap List in kafka to make KTable for caching*/
-    private void produceCartProductsInKafkaTopic(String userId, Map<String, Cart> cartProductsMap) {
-        ProducerRecord<String, Map<String, Cart>> record = new ProducerRecord<>(AppConstants.CART_PRODUCT_TOPIC_NAME, userId, cartProductsMap);
-        kafkaProducerForCartProducts.send(record);
+    private void produceCartProductsInKafka(String userId, Map<String, Cart> cartProductsMap) {
+        cartProductProducer.produceCartProductsInKafkaTopic(userId, cartProductsMap);
     }
 
-    /*prepare dashboard for the user*/
     private ApiResponse prepareDashboardBasedOnUser(String userId) {
         if(recentlyViewedProducts.isEmpty()){
             /*If New User*/
@@ -173,11 +163,5 @@ public class ProductServiceImpl implements ProductService{
             default:
         }
         return productResponseForPings;
-    }
-
-    @PreDestroy
-    public void closeProducer(){
-        kafkaProducerForRecentView.close();
-        kafkaProducerForCartProducts.close();
     }
 }

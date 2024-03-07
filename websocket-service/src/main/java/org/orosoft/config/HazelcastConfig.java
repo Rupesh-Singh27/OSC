@@ -12,4 +12,15 @@ public class HazelcastConfig {
     public HazelcastInstance hazelcastClient(){
         return HazelcastClient.newHazelcastClient();
     }
+
+    /*@Bean
+    public HazelcastInstance hazelcastInstance() {
+        Config config = new Config();
+        config.getSerializationConfig().addSerializerConfig(
+                new SerializerConfig()
+                        .setTypeClass(ActorRef.class)
+                        .setClass(ActorRefSerializer.class)
+        );
+        return Hazelcast.newHazelcastInstance(config);
+    }*/
 }

@@ -2,42 +2,37 @@ package org.orosoft.serviceImpl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.map.IMap;
-import jakarta.annotation.PostConstruct;
 import org.orosoft.common.AppConstants;
 import org.orosoft.dto.ProductDto;
+import org.orosoft.exception.CustomException;
+import org.orosoft.hazelcastmap.TempDatabaseMapOperations;
 import org.orosoft.response.FilterResponse;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class FilterService {
-    private final HazelcastInstance hazelcastInstance;
+    private final TempDatabaseMapOperations tempDatabaseMapOperations;
     private final ObjectMapper objectMapper;
-    private IMap<Character, Map<String, ProductDto>> tempDatabase;
 
     FilterService(
-            HazelcastInstance hazelcastInstance,
+            TempDatabaseMapOperations tempDatabaseMapOperations,
             ObjectMapper objectMapper
     ){
-        this.hazelcastInstance = hazelcastInstance;
+        this.tempDatabaseMapOperations = tempDatabaseMapOperations;
         this.objectMapper = objectMapper;
-    }
-
-    @PostConstruct
-    public void initializeTempDatabase(){
-        /*This could be done in constructor as well, but there could be possible bug which can arise.
-        If this line gets executed before hazelcastInstance gets initialized there will be NPE to avoid it either null check can be done or this approach can be used*/
-        this.tempDatabase = hazelcastInstance.getMap(AppConstants.TEMP_DATABASE);
     }
 
     public String getFilteredProducts(String ping, char categoryId, String filter) {
         try {
+
+            if(ping == null || filter == null) throw new CustomException("Null values found");
+            if(categoryId < 65 || categoryId > 76) throw new CustomException("Unknown category Id");
+
             List<ProductDto> filteredProductsList = new ArrayList<>();
 
             if(filter.equals(AppConstants.POPULARITY)){
@@ -69,9 +64,7 @@ public class FilterService {
     }
 
     public List<ProductDto> filterBasedOnPopularity(char categoryId){
-        Map<String, ProductDto> productMap = tempDatabase.get(categoryId);
-        List<ProductDto> popularityDesc = productMap
-                .values()
+        List<ProductDto> popularityDesc = getProductCollectionBasedOnCategoryIdFromCache(categoryId)
                 .stream()
                 .sorted(Comparator.comparingInt(ProductDto::getProductViewCount).reversed())
                 .toList();
@@ -80,9 +73,7 @@ public class FilterService {
     }
 
     public List<ProductDto> filterBasedOnPriceAscending(char categoryId){
-        Map<String, ProductDto> productMap = tempDatabase.get(categoryId);
-        List<ProductDto> priceAsc = productMap
-                .values()
+        List<ProductDto> priceAsc = getProductCollectionBasedOnCategoryIdFromCache(categoryId)
                 .stream()
                 .sorted(Comparator.comparingDouble(ProductDto::getProductMarketPrice))
                 .toList();
@@ -91,9 +82,7 @@ public class FilterService {
     }
 
     public List<ProductDto> filterBasedOnPriceDescending(char categoryId){
-        Map<String, ProductDto> productMap = tempDatabase.get(categoryId);
-        List<ProductDto> priceDesc = productMap
-                .values()
+        List<ProductDto> priceDesc = getProductCollectionBasedOnCategoryIdFromCache(categoryId)
                 .stream()
                 .sorted(Comparator.comparingDouble(ProductDto::getProductMarketPrice).reversed())
                 .toList();
@@ -102,13 +91,15 @@ public class FilterService {
     }
 
     public List<ProductDto> filterBasedOnNewestFirst(char categoryId){
-        Map<String, ProductDto> productMap = tempDatabase.get(categoryId);
-        List<ProductDto> newestFirst = productMap
-                .values()
+        List<ProductDto> newestFirst = getProductCollectionBasedOnCategoryIdFromCache(categoryId)
                 .stream()
                 .sorted(Comparator.comparing(ProductDto::getProductId).reversed())
                 .toList();
         System.out.println(newestFirst);
         return newestFirst;
+    }
+
+    private Collection<ProductDto> getProductCollectionBasedOnCategoryIdFromCache(char categoryId){
+        return tempDatabaseMapOperations.getProductCollectionBasedOnCategoryId(categoryId);
     }
 }

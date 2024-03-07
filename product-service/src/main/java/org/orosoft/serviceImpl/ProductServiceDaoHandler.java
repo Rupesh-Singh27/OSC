@@ -25,11 +25,19 @@ public class ProductServiceDaoHandler {
     public List<Product> fetchProductsFromDatabase() {
         return productRepository.findAll();
     }
-
     public List<RecentView> fetchRecentlyViewedProductsFromDatabase(String userId) {
         return recentViewRepository.findAllRecentViewForUserInDescending(userId);
     }
+    public void deleteLeastRecentViewProducts(String userId, List<String> latestViewDates){
+        recentViewRepository.deleteOldRecentViews(userId, latestViewDates);
+    }
     public List<Cart> fetchCartProductsFromDatabase(String userId) {
         return cartRepository.findByUserId(userId);
+    }
+    public void deleteCartProductFromDatabase(String productId){
+        cartRepository.deleteByProductId(productId);
+    }
+    public void saveCartProductInDatabase(Cart cartProduct){
+        cartRepository.save(cartProduct);
     }
 }

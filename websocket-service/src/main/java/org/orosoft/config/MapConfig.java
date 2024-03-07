@@ -9,7 +9,6 @@ import java.util.Map;
 
 @Configuration
 public class MapConfig {
-
     @Bean
     public Map<String, UserConnectionInfo> myHashMap() {
         return new HashMap<>();

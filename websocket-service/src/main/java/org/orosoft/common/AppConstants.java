@@ -9,6 +9,10 @@ public class AppConstants {
 
     public static final String TASK_ID_MAP = "taskIdMap";
 
+    public static final int PORT = 8888;
+    public static final int STATUS = 403;
+    public static final long DELAY = 5000L;
+
 
     public static final String ACTION_ACKNOWLEDGE_PING = "ping";
     public static final String ACTION_GET_PRODUCT_DETAILS = "2";

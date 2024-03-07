@@ -1,51 +1,36 @@
 package org.orosoft.serviceImpl;
 
-import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.map.IMap;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
-import org.orosoft.common.AppConstants;
 import org.orosoft.dto.ProductDto;
 import org.orosoft.entity.Product;
+import org.orosoft.hazelcastmap.ProductLookUpMapOperations;
+import org.orosoft.hazelcastmap.TempDatabaseMapOperations;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class DataCacheManager {
+    private final ProductLookUpMapOperations productLookUpMapOperations;
+    private final TempDatabaseMapOperations tempDatabaseMapOperations;
     private final ProductServiceDaoHandler productServiceDaoHandler;
     private final ModelMapper modelMapper;
-    private final HazelcastInstance hazelcastInstance;
-    private IMap<Character, Map<String, ProductDto>> tempDatabase;
-    private IMap<String, ProductDto> productLookUpMap;
 
     public DataCacheManager(
+            ProductLookUpMapOperations productLookUpMapOperations,
+            TempDatabaseMapOperations tempDatabaseMapOperations,
             ProductServiceDaoHandler productServiceDaoHandler,
-            ModelMapper modelMapper,
-            HazelcastInstance hazelcastInstance
+            ModelMapper modelMapper
     ) {
+        this.productLookUpMapOperations = productLookUpMapOperations;
+        this.tempDatabaseMapOperations = tempDatabaseMapOperations;
         this.productServiceDaoHandler = productServiceDaoHandler;
         this.modelMapper = modelMapper;
-        this.hazelcastInstance = hazelcastInstance;
-    }
-
-    /*
-    * The problem is that when the DataCacheManager bean is created, it will set tempDatabase using hazelcastInstance,
-    * but if hazelcastInstance is not available at the time of bean creation, it might lead to a NullPointerException
-    *
-    * Therefore, I used the @PostConstruct annotation on setupTempDatabase method that initializes the tempDatabase
-    * after the bean has been constructed and all dependencies have been injected.
-    * */
-    @PostConstruct
-    private void setupLookUpMapAndTempDatabase() {
-        this.tempDatabase = hazelcastInstance.getMap(AppConstants.TEMP_DATABASE);
-        this.productLookUpMap = hazelcastInstance.getMap(AppConstants.PRODUCT_LOOKUP_MAP);
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -61,7 +46,7 @@ public class DataCacheManager {
     private void storeDataInCache(List<Product> productList) {
 
         /*categoryId --> productId --> Product*/
-        tempDatabase.putAll(
+        tempDatabaseMapOperations.putMapInTempDatabase(
                 productList.stream()
                         .collect(Collectors.groupingBy(
                                         product -> product.getCategory().getCategoryId(),
@@ -73,8 +58,8 @@ public class DataCacheManager {
                         )
         );
 
-        /*productId --> Products*/
-        productLookUpMap.putAll(
+        /*productId --> Products, Mainly used for cart operations*/
+        productLookUpMapOperations.putMapInHazelcastMap(
                 productList
                         .stream()
                         .collect(Collectors

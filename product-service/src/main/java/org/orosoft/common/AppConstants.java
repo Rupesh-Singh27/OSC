@@ -6,7 +6,9 @@ public class AppConstants {
     public static final String PRODUCT_LOOKUP_MAP = "productMap";
     public static final String RECENT_VIEW_TOPIC_NAME = "RecentViewProductsTopic";
     public static final String CART_PRODUCT_TOPIC_NAME = "CartProductsTopic";
-
+    public static final String CART_PRODUCTS_STORE = "cart-products-store";
+    public static final String RECENT_VIEW_PRODUCT_STORE = "recent-view-products-store";
+    public static final String VIEW_COUNTER = "ViewCounter";
 
     /*Pings*/
     public static final String ACTION_GET_PRODUCT_DETAILS = "2";
@@ -22,5 +24,7 @@ public class AppConstants {
     public static final String LOW_TO_HIGH = "LH";
     public static final String HIGH_TO_LOW = "HL";
     public static final String NEWEST_FIRST = "NF";
+
+    /**/
 
 }

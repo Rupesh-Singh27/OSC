@@ -33,10 +33,6 @@ public class Product {
     @Column(name = "ViewCount")
     private int productViewCount;
 
-    /*@OneToOne(mappedBy = "product")
-    @JsonBackReference
-    private RecentView recentView;*/
-
     @Override
     public String toString() {
         return "Product{" +

@@ -7,6 +7,7 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.KTable;
 import org.apache.kafka.streams.kstream.Materialized;
+import org.orosoft.common.AppConstants;
 import org.orosoft.entity.Cart;
 import org.orosoft.entity.RecentView;
 import org.orosoft.serdes.ListSerDes;
@@ -63,26 +64,16 @@ public class KafkaStreamsConfig {
     @Bean
     public KafkaStreams kafkaStreamsForRecentView(Properties kafkaStreamsPropertiesForRecentView){
         StreamsBuilder streamsBuilder = new StreamsBuilder();
-        KTable<String, List<RecentView>> kTable = streamsBuilder.table("RecentViewProductsTopic", Materialized.as("recent-view-products-store"));
+        KTable<String, List<RecentView>> kTable = streamsBuilder.table(AppConstants.RECENT_VIEW_TOPIC_NAME, Materialized.as(AppConstants.RECENT_VIEW_PRODUCT_STORE));
         Topology topology = streamsBuilder.build();
 
         return new KafkaStreams(topology, kafkaStreamsPropertiesForRecentView);
     }
 
-    /*@Bean
-    public KafkaStreams kafkaStreamsForCartProducts(Properties kafkaStreamsPropertiesForCartProducts, StreamsBuilder kafkaStreamsBuilder){
-        //TODO: Map<ProductId, Cart> should be here
-        KTable<String, List<RecentView>> kTable = kafkaStreamsBuilder.table("CartProductsTopic", Materialized.as("cart-products-store"));
-        Topology topology = kafkaStreamsBuilder.build();
-
-        return new KafkaStreams(topology, kafkaStreamsPropertiesForCartProducts);
-    }*/
-
-//    , StreamsBuilder kafkaStreamsBuilder
     @Bean
     public KafkaStreams kafkaStreamsForCartProducts(Properties kafkaStreamsPropertiesForCartProducts){
         StreamsBuilder streamsBuilder = new StreamsBuilder();
-        KTable<String, Map<String, Cart>> kTable = streamsBuilder.table("CartProductsTopic", Materialized.as("cart-products-store"));
+        KTable<String, Map<String, Cart>> kTable = streamsBuilder.table(AppConstants.CART_PRODUCT_TOPIC_NAME, Materialized.as(AppConstants.CART_PRODUCTS_STORE));
         Topology topology = streamsBuilder.build();
 
         return new KafkaStreams(topology, kafkaStreamsPropertiesForCartProducts);
