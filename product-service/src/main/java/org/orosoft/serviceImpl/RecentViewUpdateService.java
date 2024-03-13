@@ -12,13 +12,13 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Iterator;
 import java.util.List;
 
 @Component
 public class RecentViewUpdateService {
 
     private final ProductViewCounterLookUpMapOperations productViewCounterLookUpMapOperations;
+    private final ProductServiceDaoHandler productServiceDaoHandler;
     private final RecentViewRepository recentViewRepository;
     private final RecentViewProducer recentViewProducer;
     private final RecentViewKTable recentViewKTable;
@@ -26,16 +26,17 @@ public class RecentViewUpdateService {
 
     public RecentViewUpdateService(
             ProductViewCounterLookUpMapOperations productViewCounterLookUpMapOperations,
+            ProductServiceDaoHandler productServiceDaoHandler, RecentViewRepository recentViewRepository,
             RecentViewProducer recentViewProducer,
-            RecentViewRepository recentViewRepository,
             RecentViewKTable recentViewKTable,
             ModelMapper modelMapper
     ) {
         this.productViewCounterLookUpMapOperations = productViewCounterLookUpMapOperations;
-        this.recentViewProducer = recentViewProducer;
+        this.productServiceDaoHandler = productServiceDaoHandler;
         this.recentViewRepository = recentViewRepository;
-        this.modelMapper = modelMapper;
+        this.recentViewProducer = recentViewProducer;
         this.recentViewKTable = recentViewKTable;
+        this.modelMapper = modelMapper;
     }
 
 
@@ -89,13 +90,18 @@ public class RecentViewUpdateService {
         List<RecentView> recentViewList = getRecentViewList(userId);
 
         /*If there is already the same product in the recent viewed list, which is currently being viewed by the user. Remove the old one*/
-        Iterator<RecentView> iterator = recentViewList.iterator();
-        while (iterator.hasNext()){
-            RecentView recentViewedProduct = iterator.next();
-            if(recentViewedProduct.getProduct().getProductId().equals(currentViewedProduct.getProduct().getProductId())) {
-                currentViewedProduct.setRecentViewId(recentViewedProduct.getRecentViewId());
-                iterator.remove();
+        int productIndexToRemove = -1;
+        for (int i = 0; i < recentViewList.size(); i++) {
+            RecentView recentView = recentViewList.get(i);
+            if (recentView.getProduct().getProductId().equals(currentViewedProduct.getProduct().getProductId())) {
+                productIndexToRemove = i;
+                break; // Stop searching once found
             }
+        }
+
+        // Remove the product if found
+        if (productIndexToRemove != -1) {
+            recentViewList.remove(productIndexToRemove);
         }
 
         if(recentViewList.size() >= 6){
@@ -107,17 +113,25 @@ public class RecentViewUpdateService {
         return recentViewList;
     }
 
-    private List<RecentView> getRecentViewList(String userId) {
-        return recentViewKTable.getRecentViewedProductFromKTable(userId);
-    }
-
     private void produceRecentlyViewedListInTopic(String userId, List<RecentView> recentViewList) {
         recentViewProducer.produceRecentViewProductsInKafkaTopic(userId, recentViewList);
     }
 
     /*Updating Recent View Database Table on logout*/
     public void updateRecentViewProductDatabaseTable(String userId) {
+        deleteOlderRecentViewProductsFromDatabase(userId);
+        saveNewRecentViewProductsInDatabase(userId);
+    }
+    private void deleteOlderRecentViewProductsFromDatabase(String userId) {
+        productServiceDaoHandler.deleteLeastRecentViewProducts(userId);
+    }
+
+    private void saveNewRecentViewProductsInDatabase(String userId) {
         List<RecentView> recentViewList = getRecentViewList(userId);
-        recentViewList.forEach(recentViewRepository::save);
+        productServiceDaoHandler.saveRecentViewProducts(recentViewList);
+    }
+
+    private List<RecentView> getRecentViewList(String userId) {
+        return recentViewKTable.getRecentViewedProductFromKTable(userId);
     }
 }

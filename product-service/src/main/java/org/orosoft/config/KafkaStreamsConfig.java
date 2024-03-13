@@ -8,7 +8,7 @@ import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.KTable;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.orosoft.common.AppConstants;
-import org.orosoft.entity.Cart;
+import org.orosoft.entity.CartProduct;
 import org.orosoft.entity.RecentView;
 import org.orosoft.serdes.ListSerDes;
 import org.orosoft.serdes.MapSerDe;
@@ -56,24 +56,19 @@ public class KafkaStreamsConfig {
         return props;
     }
 
-    /*@Bean
-    public StreamsBuilder kafkaStreamsBuilder(){
-        return new StreamsBuilder();
-    }*/
-
     @Bean
     public KafkaStreams kafkaStreamsForRecentView(Properties kafkaStreamsPropertiesForRecentView){
         StreamsBuilder streamsBuilder = new StreamsBuilder();
         KTable<String, List<RecentView>> kTable = streamsBuilder.table(AppConstants.RECENT_VIEW_TOPIC_NAME, Materialized.as(AppConstants.RECENT_VIEW_PRODUCT_STORE));
-        Topology topology = streamsBuilder.build();
 
+        Topology topology = streamsBuilder.build();
         return new KafkaStreams(topology, kafkaStreamsPropertiesForRecentView);
     }
 
     @Bean
     public KafkaStreams kafkaStreamsForCartProducts(Properties kafkaStreamsPropertiesForCartProducts){
         StreamsBuilder streamsBuilder = new StreamsBuilder();
-        KTable<String, Map<String, Cart>> kTable = streamsBuilder.table(AppConstants.CART_PRODUCT_TOPIC_NAME, Materialized.as(AppConstants.CART_PRODUCTS_STORE));
+        KTable<String, Map<String, CartProduct>> kTable = streamsBuilder.table(AppConstants.CART_PRODUCT_TOPIC_NAME, Materialized.as(AppConstants.CART_PRODUCTS_STORE));
         Topology topology = streamsBuilder.build();
 
         return new KafkaStreams(topology, kafkaStreamsPropertiesForCartProducts);

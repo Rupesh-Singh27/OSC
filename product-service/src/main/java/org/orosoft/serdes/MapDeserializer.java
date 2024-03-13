@@ -3,20 +3,20 @@ package org.orosoft.serdes;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.serialization.Deserializer;
-import org.orosoft.entity.Cart;
+import org.orosoft.entity.CartProduct;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class MapDeserializer implements Deserializer<Map<String, Cart>> {
+public class MapDeserializer implements Deserializer<Map<String, CartProduct>> {
     @Override
-    public Map<String, Cart> deserialize(String topic, byte[] cartProductsBytes) {
-        Map<String, Cart> cartProducts;
+    public Map<String, CartProduct> deserialize(String topic, byte[] cartProductsBytes) {
+        Map<String, CartProduct> cartProducts;
 
         ObjectMapper objectMapper = new ObjectMapper();
 
         try {
-            TypeReference<Map<String, Cart>> mapTypeReference = new TypeReference<>(){};
+            TypeReference<Map<String, CartProduct>> mapTypeReference = new TypeReference<>(){};
             cartProducts = objectMapper.readValue(cartProductsBytes,mapTypeReference);
         } catch (IOException e) {
             throw new RuntimeException(e);

@@ -4,7 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.orosoft.dto.CategoryDto;
 import org.orosoft.dto.ProductDto;
-import org.orosoft.entity.Cart;
+import org.orosoft.entity.CartProduct;
 import org.orosoft.entity.Product;
 import org.orosoft.entity.RecentView;
 import org.orosoft.hazelcastmap.TempDatabaseMapOperations;
@@ -44,14 +44,18 @@ public class ResponseGeneratorServiceForExistingUser {
         /*Get recentlyViewedProducts List from KTable Cache which was produced during login*/
         List<ProductDto> recentViewedProductList = getRecentViewedProductFromCache(userId);
 
+
         /*Build similar products list based on recently viewed products.*/
-        Set<ProductDto> similarProductSet = getSimilarProducts(recentViewedProductList);
+        List<ProductDto> similarProductSet = getSimilarProducts(recentViewedProductList);
+
 
         /*Fetch the cart products from cache(KTable) and return the response for the dashboard*/
         CartDataForDashboard cartDataForDashboard = getCartProductsFromCache(userId);
 
+
         /*Get categories in descending order*/
         List<CategoryDto> categoryListInDescending = categorySortHandler.sortCategoriesInDescending();
+
 
         similarProductSet.forEach(prod -> System.out.println(prod.getProductId()));
 
@@ -73,41 +77,48 @@ public class ResponseGeneratorServiceForExistingUser {
                 .collect(Collectors.toList());
     }
 
-    public Set<ProductDto> getSimilarProducts(List<ProductDto> recentViewProductList) {
-        Set<ProductDto> similarProductSet = computeSimilarProductsSet(recentViewProductList);
+    public List<ProductDto> getSimilarProducts(List<ProductDto> recentViewProductList) {
+        List<ProductDto> similarProductList = computeSimilarProductsSet(recentViewProductList);
 
-        if(similarProductSet.size() < 6) completeSimilarProductsForCategory(recentViewProductList, similarProductSet);
+        if(similarProductList.size() < 6)
+            completeSimilarProductsForCategory(recentViewProductList, similarProductList);
 
-        return similarProductSet;
+        return similarProductList;
     }
 
     /*Get the highest viewed product from every category of the products which user has recently seen.
     If highest viewed is in recently viewed then get next highest.*/
-    private Set<ProductDto> computeSimilarProductsSet(List<ProductDto> recentViewProductList) {
-        Set<ProductDto> similarProductSet = new LinkedHashSet<>();
+    private List<ProductDto> computeSimilarProductsSet(List<ProductDto> recentViewProductList) {
+        /*
+        RV          SP
+        Camera 05 	Camera 01
+        Mobile 06 	Mobile 01
+        Laptop 07 	Laptop 01
+        Speaker 08 	Speaker 01
+        Printer 09 	Printer 01
+        Tablet 01 	Tablet 02
+        */
+        List<ProductDto> similarProductList = new ArrayList<>();
 
         /*Constant loop always run 6 times*/
         for(ProductDto productDto : recentViewProductList){
-            /*All Products for the current category in most view desc order*/
+
+           /* All Products for the current category in most view desc order*/
             List<ProductDto> allProductsOfACategoryInViewCountDesc =
                     getProductCollectionBasedOnCategoryIdFromCache(productDto.getCategory().getCategoryId())
-                    .stream()
-                    .sorted(this::sortInDescending)
-                    .toList();
+                            .stream()
+                            .sorted(this::sortInDescending)
+                            .toList();
 
-            /*Make sure that the same products are not present in recent view list or similar product list already*/
+           /* Make sure that the same products are not present similar product list already*/
             for(ProductDto product : allProductsOfACategoryInViewCountDesc){
-                if(!recentViewProductList.contains(product) && !similarProductSet.contains(product)){
-                    similarProductSet.add(product);
+                if(!recentViewProductList.contains(product) && !similarProductList.contains(product)){
+                    similarProductList.add(product);
                     break;
                 }
             }
         }
-        return similarProductSet;
-    }
-
-    private Collection<ProductDto> getProductCollectionBasedOnCategoryIdFromCache(char categoryId) {
-        return tempDatabaseMapOperations.getProductCollectionBasedOnCategoryId(categoryId);
+        return similarProductList;
     }
 
     /*
@@ -115,34 +126,42 @@ public class ResponseGeneratorServiceForExistingUser {
      * therefore the rest of the slots of “Similar Products” would be filled with similar products from the user’s most recently viewed category
      * (in descending order of their rank).
      * */
-    private void completeSimilarProductsForCategory(List<ProductDto> recentViewProductList, Set<ProductDto> similarProductSet) {
-        char categoryId = recentViewProductList
-                .stream()
-                .findFirst()
-                .map(ProductDto::getCategory)
-                .map(CategoryDto::getCategoryId)
-                .orElseThrow(() -> new NoSuchElementException("No category found in recentViewProductList"));
+    private void completeSimilarProductsForCategory(List<ProductDto> recentViewProductList, List<ProductDto> similarProductList) {
+        /*
+        RV               SP
+        Camera 01       Camera 03
+        Mobile 06       Mobile 01
+        Laptop 07       Laptop 01
+        Camera 02       Camera 04
+        ---             Camera 05
+        ---             Camera 06
+        */
+        char categoryId = recentViewProductList.get(0).getCategory().getCategoryId();
 
         getProductCollectionBasedOnCategoryIdFromCache(categoryId)
                 .stream()
                 .sorted(this::sortInDescending)
-                .filter(productDto -> !recentViewProductList.contains(productDto) && !similarProductSet.contains(productDto))
+                .filter(productDto -> !recentViewProductList.contains(productDto) && !similarProductList.contains(productDto))
                 .forEach(productDto -> {
-                    if(similarProductSet.size() < 6){
-                         similarProductSet.add(productDto);
+                    if(similarProductList.size() < 6){
+                         similarProductList.add(productDto);
                     }
                 });
     }
 
     public CartDataForDashboard getCartProductsFromCache(String userId){
-        List<Cart> cartProductList = cartProductsKTable.getCartProductList(userId);
+        List<CartProduct> cartProductProductList = cartProductsKTable.getCartProductList(userId);
 
         return CartDataForDashboard.builder()
                 .userId(userId)
-                .cartProducts(cartProductList)
-                .productCountInCart(cartProductList.size())
-                .totalPrice(cartProductList.stream().mapToDouble(Cart::getProductPrice).sum())
+                .cartProducts(cartProductProductList)
+                .productCountInCart(cartProductProductList.size())
+                .totalPrice(cartProductProductList.stream().mapToDouble(CartProduct::getProductPrice).sum())
                 .build();
+    }
+
+    private Collection<ProductDto> getProductCollectionBasedOnCategoryIdFromCache(char categoryId) {
+        return tempDatabaseMapOperations.getProductCollectionBasedOnCategoryId(categoryId);
     }
     private int sortInDescending(ProductDto comparedProduct, ProductDto comparingProduct) {
         int comparisonResult = comparingProduct.getProductViewCount() - comparedProduct.getProductViewCount();

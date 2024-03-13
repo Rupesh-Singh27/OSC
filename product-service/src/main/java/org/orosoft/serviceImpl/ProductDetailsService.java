@@ -19,37 +19,22 @@ public class ProductDetailsService {
     private final TempDatabaseMapOperations tempDatabaseMapOperations;
     private final RecentViewUpdateService recentViewUpdateService;
     private final ObjectMapper objectMapper;
-/*    private final ProductViewCounterLookUpMapOperations productViewCounterLookUpMapOperations;
-    private final RecentViewRepository recentViewRepository;
-    private final RecentViewProducer recentViewProducer;
-    private final RecentViewKTable recentViewKTable;
-    private final ModelMapper modelMapper;*/
 
     ProductDetailsService(
             TempDatabaseMapOperations tempDatabaseMapOperations,
             RecentViewUpdateService recentViewUpdateService,
             ObjectMapper objectMapper
-            /*ProductViewCounterLookUpMapOperations productViewCounterLookUpMapOperations,
-            RecentViewRepository recentViewRepository,
-            RecentViewProducer recentViewProducer,
-            RecentViewKTable recentViewKTable,
-            ModelMapper modelMapper*/
-            )
+    )
     {
-        this.objectMapper = objectMapper;
         this.tempDatabaseMapOperations = tempDatabaseMapOperations;
         this.recentViewUpdateService = recentViewUpdateService;
-        /*this.productViewCounterLookUpMapOperations = productViewCounterLookUpMapOperations;
-        this.recentViewRepository = recentViewRepository;
-        this.recentViewProducer = recentViewProducer;
-        this.recentViewKTable = recentViewKTable;
-        this.modelMapper = modelMapper;*/
+        this.objectMapper = objectMapper;
     }
 
-    /*Prepare Product Details With Similar Products*/
+    /*Summary: Creating the MT:2 response, Getting the product with similar product and calling the recent view update service to update the recent view*/
     public String prepareProductDetailsWithSimilarProducts(char categoryId, String productId, String userId){
         try {
-            if(productId == null || userId == null) throw new CustomException("Null values in ping");
+            if(productId == null || userId == null) throw new CustomException("Either ProductId or UserId is null");
             if(categoryId < 65 || categoryId > 76) throw new CustomException("Unknown category Id");
 
             /*Get the appropriate Product from tempDatabase cache*/
@@ -99,82 +84,4 @@ public class ProductDetailsService {
     private Collection<ProductDto> getProductCollectionBasedOnCategoryIdFromCache(char categoryId) {
         return tempDatabaseMapOperations.getProductCollectionBasedOnCategoryId(categoryId);
     }
-
-//    Increasing and caching the view count of the current product in view counter map
-    /*private void incrementTheViewCountOfAProduct(String productId, ProductDto product) {
-        int productViewCount = getProductViewCountIfExistOrZero(productId);
-
-        if(productViewCount == 0) {
-            putViewCountInMap(productId, product.getProductViewCount() + 1);
-        } else{
-            putViewCountInMap(productId, productViewCount + 1);
-        }
-    }
-
-    private void putViewCountInMap(String productId, int viewCount) {
-        productViewCounterLookUpMapOperations.insertViewCountOfAProductInMap(productId, viewCount);
-    }
-
-    private int getProductViewCountIfExistOrZero(String productId) {
-        return productViewCounterLookUpMapOperations.fetchViewCounterOfAProductFromMap(productId);
-    }
-
-//    Updating Recent View Cache i.e. KTable
-    private void updateRecentViewCache(ProductDto product, String userId) {
-
-        RecentView recentlyViewedProduct = prepareRecentlyViewedProduct(product, userId);
-
-        List<RecentView> recentViewList = updateRecentlyViewedList(userId, recentlyViewedProduct);
-
-        produceRecentlyViewedListInTopic(userId, recentViewList);
-
-        System.out.println("Updated View Store Data: ");
-        recentViewList.forEach(recentView -> System.out.print(recentView.toString()));
-        System.out.println();
-    }
-
-//    Prepare Recently Viewed Product Object
-    private RecentView prepareRecentlyViewedProduct(ProductDto product, String userId) {
-        return RecentView.builder()
-                .userId(userId)
-                .product(modelMapper.map(product, Product.class))
-                .viewDate(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
-                .build();
-    }
-
-    private List<RecentView> updateRecentlyViewedList(String userId, RecentView recentlyViewedProduct) {
-        List<RecentView> recentViewList = getRecentViewList(userId);
-
-//        If there is already the same product in the recent viewed list, which is currently being viewed by the user. Remove the old one
-        Iterator<RecentView> iterator = recentViewList.iterator();
-        while (iterator.hasNext()){
-            RecentView recentViewedProduct = iterator.next();
-            if(recentViewedProduct.getProduct().getProductId().equals(recentlyViewedProduct.getProduct().getProductId())) {
-                recentlyViewedProduct.setRecentViewId(recentViewedProduct.getRecentViewId());
-                iterator.remove();
-            }
-        }
-
-        if(recentViewList.size() >= 6){
-            recentViewList.remove(recentViewList.size() - 1);
-            recentViewList.add(0, recentlyViewedProduct);
-        }else {
-            recentViewList.add(0, recentlyViewedProduct);
-        }
-        return recentViewList;
-    }
-
-    private List<RecentView> getRecentViewList(String userId) {
-        return recentViewKTable.getRecentViewedProductFromKTable(userId);
-    }
-
-    private void produceRecentlyViewedListInTopic(String userId, List<RecentView> recentViewList) {
-        recentViewProducer.produceRecentViewProductsInKafkaTopic(userId, recentViewList);
-    }
-
-//    Updating Recent View Database Table
-    public void updateRecentViewProductDatabaseTable(String userId) {
-        List<RecentView> recentViewList = getRecentViewList(userId);
-        recentViewList.forEach(recentViewRepository::save);
-    }*/
 }

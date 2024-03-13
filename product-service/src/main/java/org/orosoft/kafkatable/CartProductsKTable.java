@@ -8,7 +8,7 @@ import org.apache.kafka.streams.StoreQueryParameters;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.orosoft.common.AppConstants;
-import org.orosoft.entity.Cart;
+import org.orosoft.entity.CartProduct;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -20,8 +20,7 @@ import java.util.Map;
 public class CartProductsKTable {
 
     private final KafkaStreams kafkaStreamsForCartProducts;
-
-    ReadOnlyKeyValueStore<String, Map<String, Cart>> cartProductStore;
+    private ReadOnlyKeyValueStore<String, Map<String, CartProduct>> cartProductStore;
 
     public CartProductsKTable(
             @Qualifier("kafkaStreamsForCartProducts") KafkaStreams kafkaStreamsForCartProducts
@@ -38,16 +37,16 @@ public class CartProductsKTable {
                 .fromNameAndType(AppConstants.CART_PRODUCTS_STORE, QueryableStoreTypes.keyValueStore()));
     }
 
-    public List<Cart> getCartProductList(String userId) {
-        log.info("Cart Store Data for {} are {}", userId, cartProductStore.get(userId));
+    public List<CartProduct> getCartProductList(String userId) {
+        log.info("CartProduct Store Data for {} are {}", userId, cartProductStore.get(userId));
         return cartProductStore.get(userId).values().stream().toList();
     }
 
-    public Map<String, Cart> getMapOfCartProducts(String userId){
+    public Map<String, CartProduct> getMapOfCartProducts(String userId){
         return cartProductStore.get(userId);
     }
 
-    public Cart getCartProducts(String userId, String productId){
+    public CartProduct getCartProducts(String userId, String productId){
         return cartProductStore.get(userId).get(productId);
     }
 

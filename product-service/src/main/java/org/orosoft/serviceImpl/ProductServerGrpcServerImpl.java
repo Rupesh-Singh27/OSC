@@ -18,23 +18,23 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class ProductServerGrpcServerImpl extends ProductServiceGrpc.ProductServiceImplBase {
 
-    private final ProductService productService;
-    private final ProductDetailsService productDetailsService;
-    private final CartOperationService cartOperationService;
     private final RecentViewUpdateService recentViewUpdateService;
-
+    private final CartOperationService cartOperationService;
+    private final WebSocketPingHandler webSocketPingHandler;
+    private final ProductService productService;
     private final ObjectMapper objectMapper;
 
     ProductServerGrpcServerImpl(
-            ProductService productService,
-            ProductDetailsService productDetailsService,
+            RecentViewUpdateService recentViewUpdateService,
             CartOperationService cartOperationService,
-            RecentViewUpdateService recentViewUpdateService, ObjectMapper objectMapper
+            WebSocketPingHandler webSocketPingHandler,
+            ProductService productService,
+            ObjectMapper objectMapper
     ){
-        this.productService = productService;
-        this.productDetailsService = productDetailsService;
-        this.cartOperationService = cartOperationService;
         this.recentViewUpdateService = recentViewUpdateService;
+        this.cartOperationService = cartOperationService;
+        this.productService = productService;
+        this.webSocketPingHandler = webSocketPingHandler;
         this.objectMapper = objectMapper;
     }
 
@@ -45,7 +45,8 @@ public class ProductServerGrpcServerImpl extends ProductServiceGrpc.ProductServi
             MTPingRequest mtPingRequest = objectMapper.readValue(request.getRequest(), MTPingRequest.class);
             log.info("Request received in getProductResponseForPings {}", request.getRequest());
 
-            String productResponseForPings = productService.prepareProductResponseForPings(mtPingRequest, userId);
+//            String productResponseForPings = productService.prepareProductResponseForPings(mtPingRequest, userId);
+            String productResponseForPings = webSocketPingHandler.prepareProductResponseForPings(mtPingRequest, userId);
             System.out.println("Response for front end: " + productResponseForPings);
 
             responseObserver.onNext(ProductResponse.newBuilder().setResponse(productResponseForPings).build());
@@ -92,7 +93,7 @@ public class ProductServerGrpcServerImpl extends ProductServiceGrpc.ProductServi
         }catch (Exception exception) {
             responseObserver.onError(
                     Status.UNKNOWN
-                            .withDescription("Oops!! something went wrong, could not update Cart Product Table.")
+                            .withDescription("Oops!! something went wrong, could not update CartProduct Product Table.")
                             .augmentDescription(exception.getMessage())
                             .asRuntimeException()
             );

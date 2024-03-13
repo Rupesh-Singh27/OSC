@@ -39,7 +39,6 @@ public class ResponseGeneratorServiceForNewUser {
         return NewUserDataObjectResponse.builder().data(mainData).build();
     }
 
-
     private List<ProductDto> sortProductInDescending(Collection<Map<String, ProductDto>> productCollection) {
         return productCollection
                 .stream()
@@ -48,11 +47,11 @@ public class ResponseGeneratorServiceForNewUser {
                 .toList();
     }
 
-    private Collection<Map<String, ProductDto>> getProductCollection() {
-         return tempDatabaseMapOperations.getProductCollection();
-    }
-
     public List<CategoryDto> getSortedCategoriesInDescending() {
        return categorySortHandler.sortCategoriesInDescending();
+    }
+
+    private Collection<Map<String, ProductDto>> getProductCollection() {
+        return tempDatabaseMapOperations.getProductCollection();
     }
 }

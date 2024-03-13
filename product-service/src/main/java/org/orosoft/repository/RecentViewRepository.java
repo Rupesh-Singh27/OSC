@@ -17,13 +17,15 @@ public interface RecentViewRepository extends JpaRepository<RecentView, Integer>
     @Query("FROM RecentView WHERE userId = :userId ORDER BY viewDate DESC LIMIT 6")
     List<RecentView> findAllRecentViewForUserInDescending(@Param("userId") String userId);
 
-   /* @Transactional
+    @Transactional
     @Modifying
     @Query("DELETE FROM RecentView WHERE userId = :userId")
-    void deleteOldRecentViews(@Param("userId") String userId);*/
+    void deleteOldRecentViews(@Param("userId") String userId);
 
+   /*
     @Transactional
     @Modifying
     @Query("DELETE FROM RecentView WHERE userId = :userId AND viewDate NOT IN (:latestViewDates)")
     void deleteOldRecentViews(@Param("userId") String userId,@Param("latestViewDates") List<String> latestViewDates);
+    */
 }

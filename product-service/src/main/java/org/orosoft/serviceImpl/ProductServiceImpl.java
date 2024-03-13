@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.orosoft.common.AppConstants;
-import org.orosoft.entity.Cart;
+import org.orosoft.entity.CartProduct;
 import org.orosoft.entity.RecentView;
 import org.orosoft.exception.CustomException;
 import org.orosoft.kafkaproducer.CartProductProducer;
@@ -31,7 +31,6 @@ public class ProductServiceImpl implements ProductService{
     private final CartOperationService cartOperationService;
     private final CartProductProducer cartProductProducer;
     private final RecentViewProducer recentViewProducer;
-    private List<RecentView> recentlyViewedProducts;
     private final FilterService filterService;
     private final ObjectMapper objectMapper;
 
@@ -61,25 +60,27 @@ public class ProductServiceImpl implements ProductService{
     public ApiResponse prepareDashboard(String userId, String sessionId) {
         if(userId != null){
             /*If recentlyViewedProducts not empty then will use it as it is, if empty means user does not have past views hence prepare response accordingly*/
-            fetchRecentlyViewedProducts(userId);
-            /*Delete other older records except recent 6*/
-            deleteOlderRecentViewRecords(userId);
+            List<RecentView> recentViewList = fetchRecentlyViewedProducts(userId);
             /*Produce recentlyViewedProducts List in kafka to make KTable for caching*/
-            produceRecentViewProductsInKafka(userId);
+            produceRecentViewProductsInKafka(userId, recentViewList);
 
             /*get all the products from the cart database table store it in Map<ProductId, CartProduct> so that performing operation(increase, decrease, remove) on cart becomes easy*/
-            Map<String, Cart> cartProductsMap = fetchCartProducts(userId);
+            Map<String, CartProduct> cartProductsMap = fetchCartProducts(userId);
             /*Produce cartProductsMap List in kafka to make KTable for caching*/
             produceCartProductsInKafka(userId, cartProductsMap);
 
             /*prepare dashboard for the user*/
-            return prepareDashboardBasedOnUser(userId);
+            return prepareDashboardBasedOnUser(userId, recentViewList);
         }else{
             throw new CustomException("UserId is null");
         }
     }
 
-    private void fetchRecentlyViewedProducts(String userId) {
+    private List<RecentView> fetchRecentlyViewedProducts(String userId) {
+        return productServiceDaoHandler.fetchRecentlyViewedProductsFromDatabase(userId);
+    }
+
+    /*private void fetchRecentlyViewedProducts(String userId) {
         recentlyViewedProducts = productServiceDaoHandler.fetchRecentlyViewedProductsFromDatabase(userId);
         System.out.println("Recently Viewed Products are" + recentlyViewedProducts);
     }
@@ -87,29 +88,29 @@ public class ProductServiceImpl implements ProductService{
     private void deleteOlderRecentViewRecords(String userId) {
         List<String> latestViewDates = recentlyViewedProducts.stream().map(RecentView::getViewDate).collect(Collectors.toList());
         productServiceDaoHandler.deleteLeastRecentViewProducts(userId, latestViewDates);
+    }*/
+
+    private void produceRecentViewProductsInKafka(String userId, List<RecentView> recentViewList) {
+        recentViewProducer.produceRecentViewProductsInKafkaTopic(userId, recentViewList);
     }
 
-    private void produceRecentViewProductsInKafka(String userId) {
-        recentViewProducer.produceRecentViewProductsInKafkaTopic(userId, recentlyViewedProducts);
-    }
-
-    private Map<String, Cart> fetchCartProducts(String userId) {
+    private Map<String, CartProduct> fetchCartProducts(String userId) {
         return productServiceDaoHandler
                 .fetchCartProductsFromDatabase(userId)
                 .stream()
                 .collect(
                         Collectors.toMap(
-                                Cart::getProductId,
+                                CartProduct::getProductId,
                                 cart -> cart
                         )
                 );
     }
 
-    private void produceCartProductsInKafka(String userId, Map<String, Cart> cartProductsMap) {
+    private void produceCartProductsInKafka(String userId, Map<String, CartProduct> cartProductsMap) {
         cartProductProducer.produceCartProductsInKafkaTopic(userId, cartProductsMap);
     }
 
-    private ApiResponse prepareDashboardBasedOnUser(String userId) {
+    private ApiResponse prepareDashboardBasedOnUser(String userId, List<RecentView> recentlyViewedProducts) {
         if(recentlyViewedProducts.isEmpty()){
             /*If New User*/
             NewUserDataObjectResponse newUserDataObjectResponse = recentlyViewResponseForNewUser.buildResponseForNewUser();
@@ -121,7 +122,7 @@ public class ProductServiceImpl implements ProductService{
         }
     }
 
-    /*Based on actions performed by user pings are received, hence perform operations based on different pings*/
+    /*Based on actions performed by user pings are received, hence perform operations based on different pings
     @Override
     public String prepareProductResponseForPings(MTPingRequest mtPingRequest, String userId) {
 
@@ -160,8 +161,9 @@ public class ProductServiceImpl implements ProductService{
                     throw new RuntimeException(e);
                 }
                 System.out.println("Refresh Response: " + productResponseForPings);
-            default:
+                break;
         }
         return productResponseForPings;
     }
+     */
 }

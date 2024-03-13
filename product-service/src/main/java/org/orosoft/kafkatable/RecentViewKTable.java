@@ -18,6 +18,8 @@ public class RecentViewKTable {
 
     private final KafkaStreams kafkaStreamsForRecentView;
 
+    private ReadOnlyKeyValueStore<String, List<RecentView>> recentViewProductStore;
+
     public RecentViewKTable(
             @Qualifier("kafkaStreamsForRecentView")KafkaStreams kafkaStreamsForRecentView
     ) {
@@ -27,12 +29,15 @@ public class RecentViewKTable {
     @PostConstruct
     public void startStreams() {
         kafkaStreamsForRecentView.start();
+
+        recentViewProductStore =
+                kafkaStreamsForRecentView.store(StoreQueryParameters.fromNameAndType(AppConstants.RECENT_VIEW_PRODUCT_STORE, QueryableStoreTypes.keyValueStore()));
     }
 
     public List<RecentView> getRecentViewedProductFromKTable(String userId) {
-        ReadOnlyKeyValueStore<String, List<RecentView>> recentViewProductStore =
+        /*ReadOnlyKeyValueStore<String, List<RecentView>> recentViewProductStore =
                 kafkaStreamsForRecentView.store(StoreQueryParameters.fromNameAndType(AppConstants.RECENT_VIEW_PRODUCT_STORE, QueryableStoreTypes.keyValueStore()));
-
+*/
         return recentViewProductStore.get(userId);
     }
 

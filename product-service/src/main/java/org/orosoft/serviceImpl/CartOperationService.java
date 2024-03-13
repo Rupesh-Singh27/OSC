@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.orosoft.dto.ProductDto;
-import org.orosoft.entity.Cart;
+import org.orosoft.entity.CartProduct;
 import org.orosoft.exception.CustomException;
 import org.orosoft.hazelcastmap.ProductLookUpMapOperations;
 import org.orosoft.kafkaproducer.CartProductProducer;
@@ -42,17 +42,18 @@ public class CartOperationService {
     public String getCartProductsResponse(String ping, String userId) {
         try {
 
-            if(ping == null || userId == null) throw new CustomException("Null values found");
+            if(ping == null) throw new CustomException("Ping is null");
+            if(userId == null) throw new CustomException("User ID is null");
 
-            /*Fetching the cart product list from Cart Cache(KTable)*/
-            List<Cart> cartProductList = getCartProductListFromCache(userId);
+            /*Fetching the cart product list from CartProduct Cache(KTable)*/
+            List<CartProduct> cartProductProductList = getCartProductListFromCache(userId);
 
             /*Preparing the response*/
             CartDataForPing cartProductResponse = CartDataForPing.builder()
                     .mtPing(ping)
-                    .cartProducts(cartProductList)
-                    .productCountInCart(cartProductList.size())
-                    .totalPrice(cartProductList.stream().mapToDouble(Cart::getProductPrice).sum())
+                    .cartProductProducts(cartProductProductList)
+                    .productCountInCart(cartProductProductList.size())
+                    .totalPrice(cartProductProductList.stream().mapToDouble(CartProduct::getProductPrice).sum())
                     .build();
 
             return objectMapper.writeValueAsString(cartProductResponse);
@@ -62,9 +63,10 @@ public class CartOperationService {
     }
 
     public void increaseProductQuantity(String userId, String productId) {
-        if(productId == null || userId == null) throw new CustomException("Null values found");
+        if(productId == null) throw new CustomException("Product ID is null");
+        if(userId == null) throw new CustomException("User ID is null");
 
-        Map<String, Cart> cartProductMap = getMapOfCartProductsFromCache(userId);
+        Map<String, CartProduct> cartProductMap = getMapOfCartProductsFromCache(userId);
 
         /*If new user*/
         if (cartProductMap == null) {
@@ -72,9 +74,9 @@ public class CartOperationService {
         }
 
         /*If product present with specified ID return the product, if absent execute the lambda and create a CartProduct object will 0 quantity*/
-        Cart cartProduct = cartProductMap.computeIfAbsent(productId, thisProductId -> {
+        CartProduct cartProduct = cartProductMap.computeIfAbsent(productId, thisProductId -> {
             ProductDto productDto = getProductFromCache(thisProductId);
-            return Cart.builder()
+            return CartProduct.builder()
                     .userId(userId)
                     .productId(thisProductId)
                     .productName(productDto.getProductName())
@@ -91,24 +93,26 @@ public class CartOperationService {
     }
 
     public void decreaseProductQuantity(String userId, String productId) {
-        if(productId == null || userId == null) throw new CustomException("Null values found");
+        if(productId == null) throw new CustomException("Product ID is null");
+        if(userId == null) throw new CustomException("User ID is null");
 
-        Map<String, Cart> cartProductMap = getMapOfCartProductsFromCache(userId);
+        Map<String, CartProduct> cartProductMap = getMapOfCartProductsFromCache(userId);
 
         /*If new user or no product with productId is available there is no point decrementing*/
         if(cartProductMap == null) return;
         if(cartProductMap.get(productId) == null) return;
 
-        Cart cartProduct = cartProductMap.get(productId);
+        CartProduct cartProduct = cartProductMap.get(productId);
         cartProduct.setProductCartQuantity(cartProduct.getProductCartQuantity() - 1);
 
         produceCartProductMap(userId, cartProductMap);
     }
 
     public void removeProductFromCart(String userId, String productId) {
-        if(productId == null || userId == null) throw new CustomException("Null values found");
+        if(productId == null) throw new CustomException("Product ID is null");
+        if(userId == null) throw new CustomException("User ID is null");
 
-        Map<String, Cart> cartMap = getMapOfCartProductsFromCache(userId);
+        Map<String, CartProduct> cartMap = getMapOfCartProductsFromCache(userId);
 
         /*If new user or no product with productId is available there is no point deleting*/
         if(cartMap == null) return;
@@ -120,20 +124,20 @@ public class CartOperationService {
         produceCartProductMap(userId, cartMap);
     }
 
-    /*Updating the Cart DB Table at logout*/
+    /*Updating the CartProduct DB Table at logout*/
     public void updateCartProductsDatabaseTable(String userId) {
         if(userId == null) throw new CustomException("Null values found");
 
-        Map<String, Cart> cartProductMap = getMapOfCartProductsFromCache(userId);
+        Map<String, CartProduct> cartProductMap = getMapOfCartProductsFromCache(userId);
         cartProductMap.values().forEach(System.out::println);
         cartProductMap.values().forEach(productServiceDaoHandler::saveCartProductInDatabase);
     }
 
-    /*Getting from Cart Kafka Table cache*/
-    private List<Cart> getCartProductListFromCache(String userId) {
+    /*Getting from CartProduct Kafka Table cache*/
+    private List<CartProduct> getCartProductListFromCache(String userId) {
         return cartProductsKTable.getCartProductList(userId);
     }
-    private Map<String, Cart> getMapOfCartProductsFromCache(String userId) {
+    private Map<String, CartProduct> getMapOfCartProductsFromCache(String userId) {
         return cartProductsKTable.getMapOfCartProducts(userId);
     }
 
@@ -143,7 +147,7 @@ public class CartOperationService {
     }
 
     /*Producing in Topic*/
-    private void produceCartProductMap(String userId, Map<String, Cart> cartProductMap) {
+    private void produceCartProductMap(String userId, Map<String, CartProduct> cartProductMap) {
         cartProductProducer.produceCartProductsInKafkaTopic(userId, cartProductMap);
     }
 }

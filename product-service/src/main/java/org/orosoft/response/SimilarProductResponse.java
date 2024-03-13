@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.orosoft.dto.ProductDto;
 
-import java.util.Set;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -19,5 +19,5 @@ public class SimilarProductResponse {
     public String type;
 
     @JsonProperty("Similar Products")
-    private Set<ProductDto> similarProducts;
+    private List<ProductDto> similarProducts;
 }

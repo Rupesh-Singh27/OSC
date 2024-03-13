@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Objects;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -25,4 +27,16 @@ public class ProductDto {
 
     @JsonProperty("Counts")
     private int productViewCount;
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        ProductDto other = (ProductDto) obj;
+        return Objects.equals(productId, other.productId);
+    }
 }

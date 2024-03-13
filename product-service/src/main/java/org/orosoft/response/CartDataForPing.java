@@ -5,7 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.orosoft.entity.Cart;
+import org.orosoft.entity.CartProduct;
 
 import java.util.List;
 
@@ -19,7 +19,7 @@ public class CartDataForPing {
     public String mtPing;
 
     @JsonProperty("cartProducts")
-    private List<Cart> cartProducts;
+    private List<CartProduct> cartProductProducts;
 
     @JsonProperty("ProductsCartCount")
     private int productCountInCart;

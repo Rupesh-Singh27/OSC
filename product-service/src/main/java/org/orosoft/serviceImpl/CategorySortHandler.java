@@ -53,7 +53,7 @@ public class CategorySortHandler {
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
                         Map.Entry::getValue,
-                        (e1, e2) -> e1, //when two entries have the same key it retains the value of the first entry encountered (preserving the order)
+                        (e1, e2) -> e1,
                         LinkedHashMap::new //preserves the order of elements according to their insertion order.
                 ));
     }

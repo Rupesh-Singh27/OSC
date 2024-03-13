@@ -1,7 +1,7 @@
 package org.orosoft.config;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
-import org.orosoft.entity.Cart;
+import org.orosoft.entity.CartProduct;
 import org.orosoft.entity.RecentView;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -34,7 +34,7 @@ public class KafkaProducerConfig {
     }
 
     @Bean
-    public KafkaProducer<String, Map<String, Cart>> kafkaProducerForCartProducts(){
+    public KafkaProducer<String, Map<String, CartProduct>> kafkaProducerForCartProducts(){
         Properties props = new Properties();
         props.put("bootstrap.servers", "localhost:9092");
         props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
